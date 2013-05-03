@@ -1,5 +1,7 @@
 require 'rugged'
 require 'github/markdown'
+require 'cgi'
+require 'pry'
 
 (file, firstCommit) = ARGV
 
@@ -9,18 +11,42 @@ walker.sorting Rugged::SORT_REVERSE
 walker.push repo.head.target
 
 commits = walker.to_a 
-firstIndex = commits.index {|c| firstCommit == c.oid[0..firstCommit.length-1]}
+firstIndex = commits.index{|c| (firstCommit == c.oid[0..firstCommit.length-1])} - 1
 
-puts "<script src='jquery-1.8.0.js'></script>"
-puts "<script src='diff_match_patch.js'></script>"
-puts "<script src='blog.js'></script>"
+commits = commits.drop(firstIndex)
+
+pairs = ([nil] + commits).zip(commits + [nil])[2...-1]
+
+diffs = pairs.map do |first, second| 
+  result   = `git diff -U9999999 #{first.oid} #{second.oid}`.lines.drop(6)
+  result = result.map {|line| [line[0], line[1...line.length]]}
+  result = result.map do |first, rest| 
+    if first == '+'
+      type = :new
+    elsif first == '-'
+      type = :removed
+    elsif first == ' '
+      type = :old
+    end
+    [type, rest]
+  end
+end
+
+
 puts "<link rel='stylesheet' href='step-by-step.css' />"
 
-commits.drop(firstIndex).each do |commit|
+commits.drop(2).zip(diffs).drop(firstIndex).each do |commit, diff|
   puts "<div class='explanation'>"
   puts GitHub::Markdown.render_gfm commit.message
   puts "</div>"
-  puts "<div class='code'><pre class='input'><code>" 
+  puts "<div class='code'>"
+  diff.each do |type, line|
+    puts "<pre class='#{type.to_s}'>", CGI::escapeHTML(line), "</pre>"
+  end 
+  puts '<iframe>'
+  puts '<html>'
   puts `git show #{commit.oid}:#{file}`
-  puts "</div></pre></code>" 
+  puts '</html>'
+  puts '</iframe>'
+  puts "</div>" 
 end
