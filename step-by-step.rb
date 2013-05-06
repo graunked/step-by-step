@@ -33,20 +33,24 @@ diffs = pairs.map do |first, second|
 end
 
 
+Dir.mkdir('versions')
+
 puts "<link rel='stylesheet' href='step-by-step.css' />"
 
 commits.drop(2).zip(diffs).drop(firstIndex).each do |commit, diff|
   puts "<div class='explanation'>"
   puts GitHub::Markdown.render_gfm commit.message
   puts "</div>"
+  puts "<div class='version'>"
   puts "<div class='code'>"
   diff.each do |type, line|
     puts "<pre class='#{type.to_s}'>", CGI::escapeHTML(line), "</pre>"
   end 
-  puts '<iframe>'
-  puts '<html>'
-  puts `git show #{commit.oid}:#{file}`
-  puts '</html>'
+  puts "</div>"
+  filename = "versions/#{commit.oid[0..5]}.html"
+  File.open(filename, 'w'){|f| f.write( `git show #{commit.oid}:#{file}` ) }
+  puts "<iframe src='#{filename}'>"
   puts '</iframe>'
+  puts '<div style="clear: both"></div>'
   puts "</div>" 
 end
